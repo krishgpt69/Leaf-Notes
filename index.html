@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@100..900&display=swap"
+    rel="stylesheet">
+  <script>
+    (function () {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const applyResolvedTheme = () => {
+        const savedTheme = localStorage.getItem('theme') || 'system';
+        const systemDark = mediaQuery.matches;
+        const resolved = savedTheme === 'system' ? (systemDark ? 'dark' : 'light') : savedTheme;
+        document.documentElement.setAttribute('data-theme', resolved);
+        documenentElement.style.colorScheme = resolved;
+      };
+
+      applyResolvedTheme();
+
+      const handleChange = () => {
+        const savedTheme = localStorage.getItem('theme') || 'system';
+        if (savedTheme === 'system') applyResolvedTheme();
+      };
+
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', handleChange);
+      } else if (typeof mediaQuery.addListener === 'function') {
+        mediaQuery.addListener(handleChange);
+      }
+
+      // Fast-boot Monochrome Mode
+      if (localStorage.getItem('leaf-monochrome') === 'true') {
+        document.documentElement.classList.add('theme-monochrome');
+      }
+    })();
+  </script>
+  <style>
+    /* Prevent transition flashing on initial load */
+    html.theme-monochrome {
+      filter: grayscale(100%);
+    }
+  </style>
+  <title>leaf</title>
+</head>
+
+<body>
+  <div id="root">
+    <div class="initial-loader">
+      <div class="loader-content">
+        <div class="loader-logo">🍃</div>
+        <svg class="loader-spinner" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
+      </div>
+    </div>
+    <style>
+      :root {
+        --accent-h: 142;
+        --accent-s: 71%;
+        --mesh-bg-main: hsl(var(--accent-h) calc(var(--accent-s) * 0.3) 91%);
+      }
+
+      [data-theme="dark"] {
+        --mesh-bg-main: hsl(var(--accent-h) calc(var(--accent-s) * 0.25) 10%);
+      }
+
+      body {
+        margin: 0;
+        background-color: var(--mesh-bg-main);
+        overflow: hidden;
+      }
+
+      .initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mesh-bg-main);
+        z-index: 9999;
+      }
+
+      .loader-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .loader-logo {
+        font-size: 64px;
+        animation: breathe 2s infinite ease-in-out;
+        user-select: none;
+      }
+
+      .loader-spinner {
+        color: rgba(150, 150, 150, 0.5);
+        animation: spin 1s linear infinite;
+      }
+
+      [data-theme="dark"] .loader-spinner {
+        color: rgba(255, 255, 255, 0.4);
+      }
+
+      @keyframes breathe {
+
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+
+        50% {
+          transform: scale(1.1);
+          opacity: 0.8;
+        }
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
