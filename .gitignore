@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local test and debug artifacts
+test-results/
+test-*.ts
+test-*.mjs
+test_*.cjs
+debug_*.js
