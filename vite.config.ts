@@ -9,7 +9,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['leaf-icon.svg'],
+      includeAssets: ['leaf-favicon.svg'],
       manifest: {
         name: 'Leaf — Write instantly. Find anything. Own your data.',
         short_name: 'Leaf',
@@ -19,8 +19,7 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: 'leaf-icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'leaf-icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'leaf-favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
       workbox: {
