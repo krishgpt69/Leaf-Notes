@@ -8,6 +8,7 @@ import { buildStreakRuns, parseLocalDateKey } from '../../lib/streak-utils';
 import {
     computeDashboardIntelligence,
     type DashboardIntelligence,
+    invalidateIntelligenceCache,
 } from '../../lib/intelligence-engine';
 
 function formatDateLabel(date: string) {
@@ -297,16 +298,25 @@ function IntelligenceDashboardInner() {
         () => (activityRecords || []).reduce((sum, item) => sum + item.notesEdited + item.date.length, 0),
         [activityRecords]
     );
+    const noteActivityRecords = useLiveQuery(() => db.noteActivity.toArray(), [notesRevision]);
+    const noteActivityRevision = useMemo(
+        () => (noteActivityRecords || []).reduce(
+            (sum, item) => sum + item.timestamp + (item.wordDelta || 0) + item.noteId.length + item.action.length,
+            0
+        ),
+        [noteActivityRecords]
+    );
 
     useEffect(() => {
         let mounted = true;
         const timer = setTimeout(() => {
+            invalidateIntelligenceCache();
             computeDashboardIntelligence(activeNotes, [])
                 .then(result => { if (mounted) setIntel(result); })
                 .catch(() => { });
         }, 300);
         return () => { mounted = false; clearTimeout(timer); };
-    }, [notesRevision, activityRevision, activeNotes]);
+    }, [notesRevision, activityRevision, noteActivityRevision, activeNotes]);
 
     const heatmapWeeks = useMemo(() => {
         const weeks: { date: string; count: number; monthShort: string }[][] = [];
