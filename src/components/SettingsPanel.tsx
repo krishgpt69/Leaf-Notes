@@ -299,12 +299,24 @@ export default function SettingsPanel() {
       </div>
 
       <div className="settings-content">
+        <section className="settings-hero">
+          <span className="settings-kicker">Preferences</span>
+          <h3 className="settings-hero-title">Shape Leaf around how you write.</h3>
+          <p className="settings-hero-copy">
+            Tune the interface, reading comfort, and backup flow without losing the app&apos;s simplicity.
+          </p>
+        </section>
+
         {/* Appearance */}
         <section className="settings-section">
           <h3 className="settings-section-title">Appearance</h3>
           <div className="settings-field">
-            <label className="settings-label">Theme</label>
-            <div className="theme-cards">
+            <div className="settings-label-col">
+              <label className="settings-label">Theme</label>
+              <p className="settings-field-desc">Choose the look that matches your environment.</p>
+            </div>
+            <div className="settings-control-col">
+              <div className="theme-cards">
               {([
                 { id: 'light' as const, label: 'Light', icon: Sun },
                 { id: 'dark' as const, label: 'Dark', icon: Moon },
@@ -319,11 +331,16 @@ export default function SettingsPanel() {
                   <span>{t.label}</span>
                 </button>
               ))}
+              </div>
             </div>
           </div>
           <div className="settings-field">
-            <label className="settings-label">Accent Color</label>
-            <div className="accent-colors">
+            <div className="settings-label-col">
+              <label className="settings-label">Accent Color</label>
+              <p className="settings-field-desc">A subtle accent used for highlights, actions, and focus states.</p>
+            </div>
+            <div className="settings-control-col">
+              <div className="accent-colors">
               {[
                 { id: 'green', color: 'hsl(142 71% 45%)' },
                 { id: 'blue', color: 'hsl(217 91% 60%)' },
@@ -341,6 +358,7 @@ export default function SettingsPanel() {
                   {accentColor === c.color && <CheckCircle size={14} color="white" />}
                 </button>
               ))}
+              </div>
             </div>
           </div>
           <div className="settings-field">
@@ -538,12 +556,13 @@ export default function SettingsPanel() {
           overflow: hidden;
         }
         .settings-header {
-          height: 80px;
+          min-height: 80px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 0 40px;
           border-bottom: 1px solid var(--color-border);
+          gap: 16px;
         }
         .settings-title {
           font-family: var(--font-display);
@@ -577,6 +596,34 @@ export default function SettingsPanel() {
           max-width: 900px;
           margin: 0 auto;
         }
+        .settings-hero {
+          display: grid;
+          gap: 8px;
+          padding: 0 0 28px;
+        }
+        .settings-kicker {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+          color: var(--color-text-4);
+        }
+        .settings-hero-title {
+          margin: 0;
+          font-family: var(--font-display);
+          font-size: clamp(28px, 4vw, 40px);
+          font-style: italic;
+          font-weight: 500;
+          line-height: 1.05;
+          color: var(--color-text-1);
+        }
+        .settings-hero-copy {
+          margin: 0;
+          max-width: 580px;
+          font-size: 14px;
+          line-height: 1.6;
+          color: var(--color-text-3);
+        }
         .settings-section {
           margin-bottom: 48px;
         }
@@ -604,6 +651,7 @@ export default function SettingsPanel() {
           gap: 48px;
           padding: 24px 0;
           align-items: start;
+          border-bottom: 1px solid var(--color-border);
         }
         .settings-field {
           display: grid;
@@ -640,6 +688,12 @@ export default function SettingsPanel() {
           font-size: 14px;
           font-weight: 500;
           color: var(--color-text-1);
+        }
+        .settings-label-col {
+          min-width: 0;
+        }
+        .settings-control-col {
+          min-width: 0;
         }
         .settings-field-desc {
           font-size: 12px;
@@ -718,7 +772,8 @@ export default function SettingsPanel() {
           color: var(--color-text-4);
         }
         .theme-cards {
-          display: flex;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 8px;
         }
         .theme-card {
@@ -735,6 +790,7 @@ export default function SettingsPanel() {
           font-size: var(--text-sm);
           font-family: var(--font-ui);
           transition: border-color var(--dur-fast), background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
+          min-width: 0;
         }
         .theme-card:hover {
           border-color: var(--color-border-strong);
@@ -883,6 +939,98 @@ export default function SettingsPanel() {
           font-size: var(--text-sm);
           color: var(--color-text-3);
           line-height: 1.7;
+        }
+        @media (max-width: 1024px) {
+          .settings-header {
+            padding: 0 28px;
+          }
+          .settings-content {
+            padding: 32px 28px 120px;
+          }
+          .settings-field,
+          .settings-grid-field {
+            grid-template-columns: 160px 1fr;
+            gap: 28px;
+          }
+        }
+        @media (max-width: 768px) {
+          .settings-panel {
+            border-radius: 0;
+          }
+          .settings-header {
+            min-height: 72px;
+            padding: 0 18px;
+          }
+          .settings-title {
+            font-size: 28px;
+          }
+          .settings-content {
+            padding: 24px 18px calc(112px + env(safe-area-inset-bottom));
+          }
+          .settings-hero {
+            padding-bottom: 20px;
+          }
+          .settings-section {
+            margin-bottom: 36px;
+          }
+          .settings-field,
+          .settings-grid-field {
+            grid-template-columns: 1fr;
+            gap: 14px;
+            padding: 18px 0;
+          }
+          .settings-section-head {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+          .theme-cards {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+          .settings-range-row {
+            align-items: stretch;
+            flex-direction: column;
+          }
+          .settings-range {
+            width: 100%;
+          }
+          .settings-value-pill {
+            align-self: flex-start;
+          }
+          .settings-option-grid {
+            grid-template-columns: 1fr;
+          }
+          .backup-actions {
+            flex-direction: column;
+          }
+          .backup-btn {
+            justify-content: center;
+            width: 100%;
+          }
+          .activity-heatmap {
+            align-items: flex-start;
+          }
+          .heatmap-grid {
+            overflow-x: auto;
+            max-width: 100%;
+            padding-bottom: 4px;
+          }
+        }
+        @media (max-width: 560px) {
+          .theme-cards {
+            grid-template-columns: 1fr;
+          }
+          .accent-colors {
+            gap: 10px;
+          }
+          .settings-hero-copy {
+            font-size: 13px;
+          }
+          .settings-section-title {
+            margin-bottom: 18px;
+          }
+          .settings-reset-btn {
+            padding: 8px 12px;
+          }
         }
       `}</style>
     </div>

@@ -708,8 +708,7 @@ export default function EditorPanel() {
           <div className="editor-empty-leaf" style={{ animation: 'intelFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards', animationDelay: '0.1s', fontSize: 64 }}>🍃</div>
           <h1 className="intel-premium-title" style={{ animation: 'intelFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards', animationDelay: '0.2s', fontSize: '56px', margin: 0 }}>Leaf</h1>
           <p className="intel-premium-subtitle" style={{ animation: 'intelFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards', animationDelay: '0.3s', maxWidth: 400, opacity: 0.8 }}>
-            Press <kbd style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-text-2)' }}>⌘N</kbd> to write a new note,<br />
-            or select an existing one to begin.
+            No Ai. Just notes
           </p>
         </div>
         <style>{editorStyles}</style>

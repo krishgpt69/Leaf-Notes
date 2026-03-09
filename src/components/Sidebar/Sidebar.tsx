@@ -738,6 +738,7 @@ export default function Sidebar() {
         .sidebar {
           width: var(--sidebar-width);
           min-width: var(--sidebar-width);
+          max-width: 100%;
           height: 100%;
           border-radius: var(--radius-lg);
           display: flex;
@@ -757,6 +758,7 @@ export default function Sidebar() {
           display: flex;
           align-items: center;
           gap: 10px;
+          min-width: 0;
         }
         .sidebar-logo { font-size: 18px; }
         .sidebar-wordmark {
@@ -764,6 +766,7 @@ export default function Sidebar() {
           font-size: 17px;
           font-weight: 600;
           color: var(--color-text-1);
+          white-space: nowrap;
         }
         .sidebar-actions {
           display: flex;
@@ -1331,6 +1334,7 @@ export default function Sidebar() {
           display: flex;
           align-items: center;
           gap: 8px;
+          min-width: 0;
         }
 
         .context-menu {
@@ -1461,6 +1465,174 @@ export default function Sidebar() {
           background: var(--color-surface-3);
           color: var(--color-text-1);
           border-color: var(--color-border-strong);
+        }
+
+        @media (max-width: 1200px) {
+          .sidebar {
+            width: clamp(250px, 30vw, 300px);
+            min-width: clamp(250px, 30vw, 300px);
+          }
+        }
+
+        @media (max-width: 1024px) {
+          .sidebar {
+            width: 100%;
+            min-width: 0;
+            border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+          }
+          .sidebar-header {
+            padding: 18px 16px 14px;
+          }
+          .sidebar-wordmark {
+            font-size: 16px;
+          }
+          .sidebar-section {
+            padding: 10px 8px 2px;
+          }
+          .onboarding-widget {
+            margin: 10px;
+            padding: 16px;
+          }
+          .sidebar-empty-state {
+            padding: 28px 14px;
+          }
+          .sidebar-empty-desc {
+            max-width: 220px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .sidebar-notes-section {
+            padding-inline: 6px;
+          }
+          .sidebar-notes-section > .sidebar-section-label {
+            gap: 10px;
+            align-items: flex-start;
+          }
+          .sidebar-notes-section > .sidebar-section-label > div {
+            flex-shrink: 0;
+            gap: 6px !important;
+          }
+          .sidebar-note-wrapper {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 8px;
+          }
+          .sidebar-note-wrapper .sidebar-note {
+            padding-right: 10px;
+          }
+          .sidebar-note.is-trash-view {
+            padding-right: 10px;
+          }
+          .sidebar-note-actions {
+            position: static;
+            transform: none;
+            opacity: 1;
+            flex-shrink: 0;
+            gap: 4px;
+          }
+          .sidebar-note-checkbox.visible,
+          .sidebar-note-checkbox.checked {
+            width: 22px;
+            margin-right: 0;
+          }
+          .sidebar-note-title,
+          .sidebar-note-meta {
+            max-width: 100%;
+          }
+          .sidebar-header {
+            padding: 16px 14px 12px;
+          }
+          .sidebar-title {
+            gap: 8px;
+          }
+          .sidebar-wordmark {
+            font-size: 15px;
+          }
+          .sidebar-streak {
+            padding: 4px 8px;
+            font-size: 10px;
+          }
+          .sidebar-actions {
+            gap: 2px;
+          }
+          .sidebar-icon-btn {
+            width: 30px;
+            height: 30px;
+          }
+          .sidebar-section-label {
+            font-size: 9px;
+            letter-spacing: 0.14em;
+          }
+          .sidebar-item {
+            padding: 8px 8px;
+          }
+          .onboarding-header h5 {
+            font-size: 17px;
+          }
+          .onboarding-steps li {
+            font-size: 13px;
+          }
+          .sidebar-empty-title {
+            font-size: 15px;
+          }
+          .sidebar-empty-desc {
+            max-width: 240px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .sidebar-section-label {
+            font-size: 9px;
+            letter-spacing: 0.11em;
+          }
+          .sidebar-notes-list {
+            padding-top: 10px;
+          }
+          .sidebar-date-header {
+            padding: 6px 10px 4px;
+          }
+          .sidebar-note {
+            gap: 6px;
+            padding: 8px 6px;
+          }
+          .sidebar-note-wrapper {
+            gap: 6px;
+          }
+          .sidebar-note-action {
+            width: 24px;
+            height: 24px;
+          }
+          .sidebar-note-checkbox.visible,
+          .sidebar-note-checkbox.checked {
+            width: 20px;
+          }
+          .sidebar-header-right {
+            gap: 6px;
+          }
+          .sidebar-wordmark {
+            font-size: 14px;
+          }
+          .sidebar-streak {
+            margin-left: 0;
+          }
+          .onboarding-widget {
+            margin: 8px;
+            padding: 14px;
+          }
+          .onboarding-success {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 10px;
+          }
+          .sidebar-empty-state {
+            padding: 24px 12px;
+          }
+          .sidebar-empty-cta {
+            width: 100%;
+            justify-content: center;
+          }
         }
       `}</style>
 

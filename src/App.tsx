@@ -7,7 +7,7 @@ import EditorPanel from './components/Editor/EditorPanel';
 import CommandPalette from './components/CommandPalette';
 import QuickCapture from './components/QuickCapture';
 import { ToastProvider } from './components/Toast';
-import { PanelLeft, FileText, Tag, Download, Settings } from 'lucide-react';
+import { PanelLeft, FileText, Tag, Download, Settings, Search, Scissors, MoreHorizontal, Brain } from 'lucide-react';
 import { useHotkeys } from './hooks/useHotkeys';
 import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion';
 type LazyPreload<T extends ComponentType<object>> = React.LazyExoticComponent<T> & {
@@ -47,6 +47,8 @@ export default function App() {
   const futureActionsCount = useStore(s => s.futureActions.length);
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [isCompactShell, setIsCompactShell] = useState(() => window.innerWidth <= 1024);
   const prefersReducedMotion = usePrefersReducedMotion();
   const panelAnimationClass = prefersReducedMotion
     ? 'panel-transition-wrapper h-full overflow-y-auto'
@@ -61,6 +63,26 @@ export default function App() {
     navigator.storage?.persist?.();
   }, [initialize]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1024px)');
+    const syncShell = () => {
+      const nextIsCompact = mediaQuery.matches;
+      setIsCompactShell(nextIsCompact);
+      if (!nextIsCompact) {
+        window.setTimeout(() => setMobileSidebarOpen(false), 0);
+      }
+    };
+    syncShell();
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncShell);
+      return () => mediaQuery.removeEventListener('change', syncShell);
+    }
+
+    mediaQuery.addListener(syncShell);
+    return () => mediaQuery.removeListener(syncShell);
+  }, []);
+
   // Preload secondary panels after first paint to keep transitions instant
   useEffect(() => {
     const preloadPanels = () => {
@@ -70,6 +92,11 @@ export default function App() {
       StickersPanel.preload();
       SearchPanel.preload();
       IntelligenceDashboard.preload();
+      void import('./lib/stickerWorker')
+        .then(({ warmStickerEngine }) => warmStickerEngine())
+        .catch(() => {
+          // Sticker engine warmup is opportunistic.
+        });
     };
 
     const win = window as Window & {
@@ -208,8 +235,11 @@ export default function App() {
   return (
     <ToastProvider>
       {/* Mobile sidebar backdrop */}
-      {mobileSidebarOpen && (
+      {isCompactShell && mobileSidebarOpen && (
         <div className="mobile-sidebar-backdrop" onClick={() => setMobileSidebarOpen(false)} />
+      )}
+      {isCompactShell && mobileMoreOpen && (
+        <div className="mobile-more-backdrop" onClick={() => setMobileMoreOpen(false)} />
       )}
 
       {/* Global Quick Capture Modal */}
@@ -217,7 +247,7 @@ export default function App() {
 
       <div className="app-layout">
         {/* App Rail — desktop only */}
-        {!focusMode && <AppRail />}
+        {!focusMode && !isCompactShell && <AppRail />}
 
         {/* Sidebar — desktop: collapsible inline; mobile: drawer overlay */}
         {!focusMode && (
@@ -268,7 +298,10 @@ export default function App() {
         <nav className="mobile-bottom-nav">
           <button
             className={`mobile-nav-btn ${mobileSidebarOpen ? 'active' : ''}`}
-            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+            onClick={() => {
+              setMobileMoreOpen(false);
+              setMobileSidebarOpen(!mobileSidebarOpen);
+            }}
             aria-label="Notes"
           >
             <PanelLeft size={22} />
@@ -276,37 +309,60 @@ export default function App() {
           </button>
           <button
             className={`mobile-nav-btn ${activeSection === 'notes' && !mobileSidebarOpen ? 'active' : ''}`}
-            onClick={() => { setActiveSection('notes'); setMobileSidebarOpen(false); }}
+            onClick={() => { setActiveSection('notes'); setMobileSidebarOpen(false); setMobileMoreOpen(false); }}
             aria-label="Write"
           >
             <FileText size={22} />
             <span>Write</span>
           </button>
           <button
-            className={`mobile-nav-btn ${activeSection === 'tags' ? 'active' : ''}`}
-            onClick={() => { setActiveSection('tags'); setMobileSidebarOpen(false); }}
-            aria-label="Tags"
+            className={`mobile-nav-btn ${activeSection === 'search' ? 'active' : ''}`}
+            onClick={() => { setActiveSection('search'); setMobileSidebarOpen(false); setMobileMoreOpen(false); }}
+            aria-label="Search"
           >
-            <Tag size={22} />
-            <span>Tags</span>
+            <Search size={22} />
+            <span>Search</span>
           </button>
           <button
-            className={`mobile-nav-btn ${activeSection === 'import' ? 'active' : ''}`}
-            onClick={() => { setActiveSection('import'); setMobileSidebarOpen(false); }}
-            aria-label="Import"
+            className={`mobile-nav-btn ${activeSection === 'stickers' ? 'active' : ''}`}
+            onClick={() => { setActiveSection('stickers'); setMobileSidebarOpen(false); setMobileMoreOpen(false); }}
+            aria-label="Stickers"
           >
-            <Download size={22} />
-            <span>Import</span>
+            <Scissors size={22} />
+            <span>Stickers</span>
           </button>
           <button
-            className={`mobile-nav-btn ${activeSection === 'settings' ? 'active' : ''}`}
-            onClick={() => { setActiveSection('settings'); setMobileSidebarOpen(false); }}
-            aria-label="Settings"
+            className={`mobile-nav-btn ${mobileMoreOpen || ['tags', 'import', 'settings', 'intelligence'].includes(activeSection) ? 'active' : ''}`}
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              setMobileMoreOpen(!mobileMoreOpen);
+            }}
+            aria-label="More"
           >
-            <Settings size={22} />
-            <span>Settings</span>
+            <MoreHorizontal size={22} />
+            <span>More</span>
           </button>
         </nav>
+      )}
+      {!focusMode && mobileMoreOpen && (
+        <div className="mobile-more-sheet">
+          <button className={`mobile-more-item ${activeSection === 'tags' ? 'active' : ''}`} onClick={() => { setActiveSection('tags'); setMobileMoreOpen(false); }}>
+            <Tag size={18} />
+            <span>Tags</span>
+          </button>
+          <button className={`mobile-more-item ${activeSection === 'import' ? 'active' : ''}`} onClick={() => { setActiveSection('import'); setMobileMoreOpen(false); }}>
+            <Download size={18} />
+            <span>Import</span>
+          </button>
+          <button className={`mobile-more-item ${activeSection === 'intelligence' ? 'active' : ''}`} onClick={() => { setActiveSection('intelligence'); setMobileMoreOpen(false); }}>
+            <Brain size={18} />
+            <span>Insights</span>
+          </button>
+          <button className={`mobile-more-item ${activeSection === 'settings' ? 'active' : ''}`} onClick={() => { setActiveSection('settings'); setMobileMoreOpen(false); }}>
+            <Settings size={18} />
+            <span>Settings</span>
+          </button>
+        </div>
       )}
 
       <style>{`
@@ -344,6 +400,10 @@ export default function App() {
         .mobile-sidebar-backdrop {
           display: none;
         }
+        .mobile-more-backdrop,
+        .mobile-more-sheet {
+          display: none;
+        }
 
         @media (max-width: 1100px) {
           .app-layout {
@@ -352,32 +412,35 @@ export default function App() {
           }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
           .app-layout {
             padding: 0;
             gap: 0;
-            padding-bottom: calc(64px + env(safe-area-inset-bottom)); /* room for bottom nav */
+            padding-bottom: calc(72px + env(safe-area-inset-bottom));
           }
 
-          /* Hide desktop AppRail on mobile */
+          /* Hide desktop AppRail on compact layouts */
           .app-rail {
             display: none !important;
           }
 
-          /* Sidebar becomes a fixed left drawer on mobile */
+          /* Sidebar becomes a fixed left drawer on compact layouts */
           .sidebar-wrapper {
             display: block;
             position: fixed;
             top: 0;
             left: 0;
-            bottom: calc(64px + env(safe-area-inset-bottom));
-            width: min(320px, 85vw);
+            bottom: 0;
+            width: min(360px, 86vw);
+            max-width: 100%;
             z-index: 150;
             transform: translateX(-110%);
             transition: transform 350ms var(--spring-smooth);
           }
           .sidebar-wrapper .sidebar {
             height: 100%;
+            width: 100%;
+            min-width: 0;
             border-radius: 0 var(--radius-lg) var(--radius-lg) 0 !important;
             box-shadow: var(--shadow-xl) !important;
           }
@@ -397,8 +460,14 @@ export default function App() {
           }
 
           /* Main content fills screen */
+          .panel-transition-wrapper {
+            width: 100%;
+            flex: 1 1 auto;
+          }
+
           .editor-panel, .settings-panel, .tags-panel, .import-panel, .stickers-panel {
-            border-radius: 0 !important;
+            width: 100%;
+            min-width: 0;
           }
 
           /* Bottom nav */
@@ -408,7 +477,7 @@ export default function App() {
             bottom: 0;
             left: 0;
             right: 0;
-            height: calc(64px + env(safe-area-inset-bottom));
+            height: calc(72px + env(safe-area-inset-bottom));
             padding-bottom: env(safe-area-inset-bottom);
             z-index: 100;
             background: var(--color-surface);
@@ -416,9 +485,11 @@ export default function App() {
             -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
             border-top: 1px solid var(--color-border);
             box-shadow: 0 -8px 32px rgba(0,0,0,0.15);
+            justify-content: space-between;
+            padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right));
           }
           .mobile-nav-btn {
-            flex: 1;
+            flex: 1 1 0;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -442,10 +513,77 @@ export default function App() {
           .mobile-nav-btn:active {
             transform: scale(0.93);
           }
+          .mobile-more-backdrop {
+            display: block;
+            position: fixed;
+            inset: 0;
+            z-index: 159;
+            background: rgba(0,0,0,0.28);
+          }
+          .mobile-more-sheet {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: calc(84px + env(safe-area-inset-bottom));
+            z-index: 160;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            padding: 12px;
+            border: 1px solid var(--color-border);
+            border-radius: 20px;
+            background: var(--color-surface);
+            backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+            box-shadow: var(--shadow-xl);
+          }
+          .mobile-more-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            padding: 14px 12px;
+            border: 1px solid var(--color-border);
+            border-radius: 14px;
+            background: var(--color-surface-2);
+            color: var(--color-text-2);
+            font-family: var(--font-ui);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+          }
+          .mobile-more-item.active {
+            border-color: var(--color-accent);
+            background: var(--color-accent-light);
+            color: var(--color-accent);
+          }
 
           @keyframes fade-in {
             from { opacity: 0; }
             to { opacity: 1; }
+          }
+        }
+
+        @media (max-width: 768px) {
+          .editor-panel, .settings-panel, .tags-panel, .import-panel, .stickers-panel {
+            border-radius: 0 !important;
+          }
+
+          .sidebar-wrapper {
+            width: min(320px, 88vw);
+          }
+        }
+
+        @media (max-width: 480px) {
+          .mobile-nav-btn span {
+            font-size: 9px;
+          }
+          .mobile-more-sheet {
+            grid-template-columns: 1fr;
+          }
+
+          .sidebar-wrapper {
+            width: min(300px, 92vw);
           }
         }
       `}</style>

@@ -134,6 +134,7 @@ export default function SearchPanel() {
           padding: 40px 60px;
           height: 100%;
           overflow: hidden;
+          min-width: 0;
         }
         .search-header {
            margin-bottom: 32px;
@@ -302,6 +303,58 @@ export default function SearchPanel() {
             gap: 8px;
             font-size: 11px;
             color: var(--color-text-4);
+        }
+        @media (max-width: 1024px) {
+          .search-panel {
+            padding: 32px 28px 112px;
+          }
+        }
+        @media (max-width: 768px) {
+          .search-panel {
+            padding: 24px 18px 112px;
+          }
+          .search-header {
+            margin-bottom: 24px;
+          }
+          .search-title {
+            font-size: 26px;
+          }
+          .search-controls {
+            gap: 14px;
+            margin-bottom: 24px;
+          }
+          .filters-row {
+            flex-direction: column;
+          }
+          .filter-select {
+            width: 100%;
+            min-height: 44px;
+          }
+          .tags-filter {
+            padding: 14px;
+          }
+          .results-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .result-card {
+            padding: 16px;
+          }
+        }
+        @media (max-width: 480px) {
+          .search-panel {
+            padding: 20px 14px 108px;
+          }
+          .search-title {
+            font-size: 22px;
+          }
+          .search-input {
+            height: 48px;
+            padding: 0 44px;
+            font-size: 15px;
+          }
+          .empty-results {
+            padding: 28px 16px;
+          }
         }
       `}</style>
         </div>

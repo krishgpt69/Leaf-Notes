@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { removeBackground } from '@imgly/background-removal';
 import { db, type Sticker } from '../lib/db';
-import { autoCropTransparentImage, resizeImage } from '../lib/imageUtils';
+import { processStickerInWorker, warmStickerEngine } from '../lib/stickerWorker';
 import { v4 as uuid } from 'uuid';
 import {
   Scissors,
@@ -13,12 +12,28 @@ import {
   Loader,
 } from 'lucide-react';
 
-type ProcessingState = 'idle' | 'processing' | 'done' | 'error';
+type ProcessingState = 'idle' | 'ready' | 'processing' | 'done' | 'error';
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error('Failed to read sticker thumbnail'));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read sticker thumbnail'));
+    reader.readAsDataURL(blob);
+  });
+}
 
 export default function StickersPanel() {
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [processingState, setProcessingState] = useState<ProcessingState>('idle');
   const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState('Preparing image');
 
   // Source state
   const [originalFile, setOriginalFile] = useState<File | null>(null);
@@ -43,87 +58,77 @@ export default function StickersPanel() {
     load();
   }, []);
 
+  useEffect(() => {
+    void warmStickerEngine().catch(() => {
+      // Warmup is opportunistic; generation still works without it.
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      if (resultUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(resultUrl);
+      }
+    };
+  }, [previewUrl, resultUrl]);
+
   // Removed blobToDataUrl because creating base64 strings from 15MB photos blocks the UI thread
 
-  const getImageDimensions = useCallback(
-    (url: string): Promise<{ width: number; height: number }> => {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve({ width: img.width, height: img.height });
-        img.src = url;
-      });
-    },
-    []
-  );
-
   // Step 2: Auto Crop and process entirely
-  const processCrop = useCallback(async (initialDataUrl?: string, initialFile?: File) => {
-    const url = initialDataUrl || previewUrl;
+  const processCrop = useCallback(async (initialFile?: File) => {
     const file = initialFile || originalFile;
-    if (!url || !file) return;
+    if (!file) return;
 
     setProcessingState('processing');
     setProgress(0);
+    setProgressLabel('Preparing image');
     setResultUrl(null);
     setResultFailed(false);
 
     try {
-      const img = new Image();
-      img.src = url;
-      await new Promise<void>((r) => { img.onload = () => r(); });
-
-      const progressInterval = setInterval(() => {
-        setProgress((p) => Math.min(p + 2, 90));
-      }, 200);
-
-      // Pre-shrink the image (max 800px) so the AI doesn't choke on 12MP photos
-      const processingBlob = await resizeImage(file, 800);
-
-      // Run AI background removal on the fast, resized blob
-      const rawAiBlob = await removeBackground(processingBlob, {
-        progress: (_key: string, current: number, total: number) => {
-          if (total > 0) {
-            setProgress(Math.round((current / total) * 100));
+      let previewObjectUrl: string | null = null;
+      const workerResult = await processStickerInWorker(file, {
+        maxDim: 640,
+        thumbnailMaxDim: 160,
+        onProgress: (nextProgress, stage) => {
+          setProgress(nextProgress);
+          setProgressLabel(stage);
+        },
+        onPartial: (partialResult) => {
+          const nextUrl = URL.createObjectURL(partialResult.stickerBlob);
+          if (previewObjectUrl) {
+            URL.revokeObjectURL(previewObjectUrl);
           }
+          previewObjectUrl = nextUrl;
+          setResultUrl(nextUrl);
+          setResultFailed(false);
+          setProgress((current) => Math.max(current, 72));
+          setProgressLabel('Preview ready · refining edges');
         },
       });
 
-      clearInterval(progressInterval);
-      setProgress(100);
-
-      let finalResultBlob = rawAiBlob;
-
-      // Auto crop the transparent whitespace!
-      finalResultBlob = await autoCropTransparentImage(finalResultBlob);
-
-      const resultDataUrl = URL.createObjectURL(finalResultBlob);
+      const resultDataUrl = URL.createObjectURL(workerResult.stickerBlob);
+      if (previewObjectUrl) {
+        URL.revokeObjectURL(previewObjectUrl);
+      }
       setResultUrl(resultDataUrl);
       setResultFailed(false);
-
-      const dims = await getImageDimensions(resultDataUrl);
-
-      // Create thumbnail
-      const thumbCanvas = document.createElement('canvas');
-      const maxThumb = 200;
-      const scale = Math.min(maxThumb / dims.width, maxThumb / dims.height, 1);
-      thumbCanvas.width = dims.width * scale;
-      thumbCanvas.height = dims.height * scale;
-      const tctx = thumbCanvas.getContext('2d')!;
-      const thumbImg = new Image();
-      thumbImg.src = resultDataUrl;
-      await new Promise<void>((r) => { thumbImg.onload = () => r(); });
-      tctx.drawImage(thumbImg, 0, 0, thumbCanvas.width, thumbCanvas.height);
-      const thumbUrl = thumbCanvas.toDataURL('image/png');
+      const thumbUrl = await blobToDataUrl(workerResult.thumbnailBlob);
+      setProgress(100);
+      setProgressLabel('Sticker ready');
 
       // Save to DB
       const sticker: Sticker = {
         id: uuid(),
         name: file.name.replace(/\.[^.]+$/, ''),
         originalBlob: file,
-        stickerBlob: finalResultBlob,
+        stickerBlob: workerResult.stickerBlob,
         thumbnailUrl: thumbUrl,
-        width: dims.width,
-        height: dims.height,
+        width: workerResult.width,
+        height: workerResult.height,
         createdAt: Date.now(),
       };
       await db.stickers.put(sticker);
@@ -134,7 +139,7 @@ export default function StickersPanel() {
       console.error('Background removal failed:', err);
       setProcessingState('error');
     }
-  }, [previewUrl, originalFile, getImageDimensions]);
+  }, [originalFile]);
 
   // Step 1: User uploads → show the selection UI
   const handleUpload = useCallback(
@@ -145,12 +150,11 @@ export default function StickersPanel() {
       setPreviewFailed(false);
       setResultUrl(null);
       setResultFailed(false);
-
-      // Instantly start processing the full file
-      setProcessingState('processing');
-      processCrop(objectUrl, file);
+      setProgress(0);
+      setProgressLabel('Preparing image');
+      setProcessingState('ready');
     },
-    [processCrop]
+    []
   );
 
   const handleFiles = useCallback(
@@ -217,6 +221,7 @@ export default function StickersPanel() {
     setResultUrl(null);
     setLatestCreatedSticker(null);
     setProgress(0);
+    setProgressLabel('Preparing image');
   }, []);
 
   return (
@@ -258,6 +263,39 @@ export default function StickersPanel() {
             </div>
           )}
 
+          {processingState === 'ready' && (
+            <div className="sticker-workspace">
+              <button className="workspace-close" onClick={resetProcessor}>
+                <X size={16} />
+              </button>
+              <div className="sticker-preview-area">
+                <div className="preview-card">
+                  <span className="preview-label">Selected Image</span>
+                  <div className="preview-img-wrap">
+                    {previewUrl && !previewFailed ? (
+                      <img src={previewUrl} alt="Selected" onError={() => setPreviewFailed(true)} />
+                    ) : (
+                      <div className="preview-placeholder">
+                        <Scissors size={24} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="sticker-ready-copy">
+                Your image is ready. Generate the sticker when you want.
+              </div>
+              <div className="sticker-done-actions">
+                <button className="done-btn primary" onClick={() => void processCrop()}>
+                  <Sparkles size={14} /> Generate Sticker
+                </button>
+                <button className="done-btn" onClick={() => fileInputRef.current?.click()}>
+                  <Scissors size={14} /> Choose Another
+                </button>
+              </div>
+            </div>
+          )}
+
 
           {/* ─── Processing: Progress ─── */}
           {processingState === 'processing' && (
@@ -276,14 +314,18 @@ export default function StickersPanel() {
                   </div>
                 </div>
                 <div className="preview-arrow">
-                  <Loader size={20} className="spin" />
+                  {resultUrl ? <Sparkles size={20} /> : <Loader size={20} className="spin" />}
                 </div>
                 <div className="preview-card result">
                   <span className="preview-label">Sticker</span>
                   <div className="preview-img-wrap checkerboard">
-                    <div className="preview-placeholder">
-                      <Scissors size={24} />
-                    </div>
+                    {resultUrl && !resultFailed ? (
+                      <img src={resultUrl} alt="Sticker preview" onError={() => setResultFailed(true)} />
+                    ) : (
+                      <div className="preview-placeholder">
+                        <Scissors size={24} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -292,11 +334,7 @@ export default function StickersPanel() {
                   <div className="progress-fill" style={{ width: `${progress}%` }} />
                 </div>
                 <span className="progress-text">
-                  {progress < 30
-                    ? 'Loading AI model...'
-                    : progress < 90
-                      ? 'Removing background...'
-                      : 'Finishing up...'}
+                  {progressLabel}
                 </span>
               </div>
             </div>
@@ -432,17 +470,18 @@ const styles = `
     z-index: 1000;
   }
   .stickers-header {
-    height: 40px;
+    height: 48px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     padding: 0 24px;
     border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 82%, transparent) 0%, transparent 100%);
   }
   .stickers-title {
     font-family: var(--font-display);
-    font-size: var(--text-lg);
+    font-size: calc(var(--text-lg) + 1px);
     color: var(--color-text-1);
     font-weight: 400;
     display: flex;
@@ -453,6 +492,7 @@ const styles = `
   .stickers-count {
     font-size: var(--text-xs);
     color: var(--color-text-3);
+    letter-spacing: 0.04em;
   }
   .stickers-body {
     flex: 1;
@@ -487,45 +527,75 @@ const styles = `
     background: var(--color-surface);
   }
   .sticker-dropzone:hover {
-    border-color: var(--color-accent);
-    background: var(--color-accent-light);
-    color: var(--color-accent);
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 82%, var(--color-accent-light)) 0%, color-mix(in srgb, var(--color-surface-2) 88%, var(--color-accent-light)) 100%);
+    color: var(--color-text-2);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 18%, transparent),
+      0 14px 32px rgba(0, 0, 0, 0.16);
+    transform: translateY(-2px);
   }
   .sticker-dropzone.drag-over {
-    border-color: var(--color-accent);
-    background: var(--color-accent-light);
-    color: var(--color-accent);
+    border-color: color-mix(in srgb, var(--color-accent) 72%, white 8%);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 74%, var(--color-accent-light)) 0%, color-mix(in srgb, var(--color-surface-2) 82%, var(--color-accent-light)) 100%);
+    color: var(--color-text-1);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 24%, transparent),
+      0 18px 38px rgba(0, 0, 0, 0.2);
     transform: scale(1.01);
   }
   .dropzone-icon {
     width: 56px;
     height: 56px;
     border-radius: var(--radius-full);
-    background: var(--color-accent-light);
+    background: color-mix(in srgb, var(--color-accent-light) 45%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-accent);
+    color: color-mix(in srgb, var(--color-accent) 72%, white 10%);
     margin-bottom: 4px;
+    transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
+  }
+  .sticker-dropzone:hover .dropzone-icon,
+  .sticker-dropzone.drag-over .dropzone-icon {
+    background: color-mix(in srgb, var(--color-accent-light) 68%, transparent);
+    color: var(--color-accent);
+    transform: scale(1.04);
   }
   .sticker-dropzone h3 {
     font-size: var(--text-md);
     font-weight: 600;
     color: var(--color-text-1);
+    transition: color var(--dur-fast);
   }
   .sticker-dropzone p {
     font-size: var(--text-sm);
     max-width: 300px;
     line-height: 1.5;
+    transition: color var(--dur-fast);
+  }
+  .sticker-dropzone:hover h3,
+  .sticker-dropzone.drag-over h3 {
+    color: var(--color-text-1);
+  }
+  .sticker-dropzone:hover p,
+  .sticker-dropzone.drag-over p {
+    color: var(--color-text-2);
   }
 
   /* ─── Workspace ─── */
   .sticker-workspace {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-xl);
-    background: var(--color-surface);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, transparent) 0%, color-mix(in srgb, var(--color-surface-2) 88%, transparent) 100%);
     padding: 24px;
     position: relative;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 16px 32px rgba(0, 0, 0, 0.12);
   }
   .workspace-close {
     position: absolute;
@@ -727,6 +797,7 @@ const styles = `
     align-items: center;
     justify-content: center;
     background: var(--color-surface-2);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
   .preview-img-wrap img {
     max-width: 100%;
@@ -762,6 +833,13 @@ const styles = `
   .sticker-progress {
     margin-top: 20px;
     text-align: center;
+  }
+  .sticker-ready-copy {
+    margin-top: 18px;
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--color-text-3);
+    line-height: 1.5;
   }
   .progress-bar {
     height: 4px;
@@ -837,6 +915,7 @@ const styles = `
     font-weight: 600;
     color: var(--color-text-2);
     margin-bottom: 14px;
+    letter-spacing: 0.01em;
   }
   .sticker-grid {
     display: grid;
@@ -846,20 +925,26 @@ const styles = `
   .sticker-card {
     position: relative;
     border-radius: var(--radius-lg);
-    border: 2px solid transparent;
+    border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
     cursor: pointer;
+    background: color-mix(in srgb, var(--color-surface) 92%, transparent);
     transition: border-color var(--dur-fast) var(--spring-snappy),
       transform var(--dur-fast) var(--spring-snappy),
       box-shadow var(--dur-fast) var(--spring-snappy);
     overflow: hidden;
   }
   .sticker-card:hover {
-    border-color: var(--color-border-strong);
-    transform: scale(1.03);
+    border-color: color-mix(in srgb, var(--color-accent) 28%, var(--color-border-strong));
+    transform: translateY(-2px);
+    box-shadow:
+      0 14px 24px rgba(0, 0, 0, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
   .sticker-card.selected {
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px var(--color-accent-light);
+    box-shadow:
+      0 0 0 3px var(--color-accent-light),
+      0 12px 22px rgba(0, 0, 0, 0.14);
   }
   .sticker-thumb {
     aspect-ratio: 1;
@@ -892,11 +977,13 @@ const styles = `
     transform: translateX(-50%);
     display: flex;
     gap: 2px;
-    background: var(--color-surface);
+    background: color-mix(in srgb, var(--color-surface) 88%, transparent);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: 3px;
     box-shadow: var(--shadow-md);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   }
   .sticker-card-actions button {
     width: 26px;
